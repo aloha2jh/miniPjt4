@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE mapper
+		PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+		"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="PurchaseMapper">
+ 	 
+ 	<resultMap id="purchaseMap" type="purchase">  
+		<result property="divyAddr" column="DEMAILADDR" jdbcType="VARCHAR"/>
+		<result property="divyDate" column="DLVY_DATE" jdbcType="VARCHAR"/>
+		<result property="divyRequest" column="DLVY_REQUEST" jdbcType="VARCHAR"/>
+		<result property="orderDate" column="ORDER_DATA" jdbcType="VARCHAR"/>
+		<result property="paymentOption" column="PAYMENT_OPTION" jdbcType="VARCHAR"/> 
+ 		<result property="receiverName" column="RECEIVER_NAME" jdbcType="VARCHAR"/>
+		<result property="receiverPhone" column="RECEIVER_PHONE" jdbcType="VARCHAR"/>
+		<result property="tranCode" column="TRAN_STATUS_CODE" jdbcType="VARCHAR"/>
+		<result property="tranNo" column="TRAN_NO" jdbcType="NUMERIC"/>   
+ 	 	<association property="purchaseProd" resultMap="productMapAss"/>
+ 	 	<association property="buyer" resultMap="userMapAss"/>
+ 	</resultMap>
+ 	  
+ 	<resultMap id="productMapAss" type="com.model2.mvc.service.domain.Product" >  
+			<id property="prodNo" column="prod_no"/> 
+		 	<result property="prodNo" column="prod_no" jdbcType="NUMERIC"/> 
+			<result property="prodName" column="prod_name" jdbcType="VARCHAR"/> 
+			<result property="prodDetail" column="prod_detail" jdbcType="VARCHAR"/> 
+			<result property="price" column="price" jdbcType="NUMERIC"/> 
+			<result property="imgFile" column="image_file" jdbcType="VARCHAR"/> 
+			<result property="regDate" column="reg_date" jdbcType="VARCHAR"/> 
+			<result property="manuDay" column="manufacture_day" jdbcType="VARCHAR"/> 
+			<result property="prodTranCode" column="tran_code" jdbcType="VARCHAR"/> 
+ 	 </resultMap>  
+	 <select 	id="productSelectMap"  resultMap="productMapAss" >
+		select p.prod_no, p.prod_name, p.prod_detail, p.price, p.reg_date, p.manufacture_day ,nvl(  t.tran_status_code, '000') tran_code 
+		from product p, transaction t 
+		where  
+		p.prod_no = t.prod_no(+) 
+		and p.prod_no = #{value}		 
+	 </select>
+ 	 
+ 	<resultMap id="userMapAss" type="com.model2.mvc.service.domain.User">   
+ 		<result property="userId" 			column="user_id" 			jdbcType="VARCHAR"/>
+		<result property="userName"	column="user_name" 		jdbcType="VARCHAR" />
+		<result property="password" 	column="password" 		jdbcType="VARCHAR" />
+		<result property="role" 				column="role" 					jdbcType="VARCHAR" />
+		<result property="ssn" 				column="ssn" 					jdbcType="VARCHAR" />
+		<result property="phone" 			column="cell_phone" 		jdbcType="VARCHAR" />
+		<result property="addr" 				column="addr" 					jdbcType="VARCHAR" />
+		<result property="email" 			column="email" 				jdbcType="NUMERIC"  />
+		<result property="regDate" 		column="reg_date" 			jdbcType="DATE" />
+ 	 </resultMap> 
+	 <select 	id="userSelectMap"	resultMap="userMapAss">
+		SELECT
+		user_id , user_name , password , role ,  cell_phone ,  addr , email , reg_date 		
+		FROM users 
+		WHERE user_id = #{value}
+	 </select>
+	 
+	 
+	 
+	 
+	 <insert 	id="addPurchase" parameterType="purchase" > 
+		insert into transaction 
+				(buyer_id, DEMAILADDR, dlvy_date, dlvy_request, ORDER_DATA, 
+				payment_option, prod_no, receiver_name, receiver_phone, tran_status_code, 		tran_no) 
+		values ( #{buyer.userId}, #{divyAddr}, #{divyDate}, #{divyRequest}, sysdate, 
+				#{paymentOption}, #{purchaseProd.prodNo}, #{receiverName},#{receiverPhone},#{tranCode} , 	seq_transaction_tran_no.NEXTVAL )
+	 </insert>
+	  
+	 <select 	id="getPurchase" parameterType="string"	resultMap="purchaseMap">
+		select *
+		from transaction 
+		where  TRAN_NO = #{value}		
+	 </select>
+	  
+	 <update id="updatePurchase"	parameterType="purchase" >
+	   	UPDATE product
+	   	<set>
+	   		prod_name = #{prodName} , 
+	   		prod_detail = #{prodDetail} , 
+	   		manufacture_day = #{manuDay} , 
+	   		price = #{price}  
+	   		<!--  image_file = #{imgFile} , -->
+	   	</set>
+	   	WHERE prod_no = #{prodNo}
+	 </update>
+		  
+	 <select  id="getPurchaseList"  parameterType="search"	resultMap="purchaseMap">
+	  	SELECT *
+	  	FROM (	SELECT inner_table.* , ROWNUM AS row_seq
+	  					FROM		(	SELECT select p.prod_no, p.prod_name, p.price, p.reg_date, nvl(  t.tran_status_code, '000') tran_code
+											FROM product p, transaction t 
+											<!-- ////////// if 넣어서, serachCondition 구현해야됨. --> 
+											where  
+           									p.prod_no = t.prod_no(+) 
+        							) inner_table 	
+						WHERE ROWNUM &lt;= #{endRowNum} )
+		WHERE row_seq BETWEEN #{startRowNum} AND #{endRowNum}
+	 </select>
+	   
+	 <select  id="getTotalCount"  parameterType="search"	 resultType="int">
+	  	SELECT COUNT(*)
+	  	FROM(	select p.prod_no, p.prod_name, p.price, p.reg_date, nvl(  t.tran_status_code, '000') tran_code
+				FROM product p, transaction t   
+				<where>
+					<if test="searchCondition != null and searchCondition == 0 and searchKeyword !='' ">
+			 			user_id = #{searchKeyword}
+					</if>
+					<if test="searchCondition != null and searchCondition == 1 and searchKeyword !='' ">
+			 			user_name = #{searchKeyword}
+					</if>
+					<if test="true" >
+						p.prod_no = t.prod_no(+)  
+					</if>
+				</where> 
+		) vt	 		
+	 </select>
+	<!--  
+	 <select id="getPurchaseList" parameterType="search"	resultMap="purchaseMap">
+	 	SELECT * FROM 
+	  	(	SELECT inner_table.* , ROWNUM AS row_seq
+	  		FROM ( select p.prod_no, p.prod_name, p.prod_detail, p.price, p.reg_date, p.manufacture_day ,nvl(  t.tran_status_code, '000') tran_code
+					from product p, transaction t  
+						<where>
+							<if test="searchCondition != null and searchCondition == 0 and searchKeyword !='' ">
+				 				prod_no = #{searchKeyword}
+							</if>
+							<if test="searchCondition != null and searchCondition == 1 and searchKeyword !='' ">
+				 				prod_name = #{searchKeyword}
+							</if>
+							<if test="true">
+								p.prod_no = t.prod_no(+)
+							</if>
+						</where> 
+					ORDER BY prod_no ) inner_table 	
+			WHERE ROWNUM &lt;= #{endRowNum} )
+		WHERE row_seq BETWEEN #{startRowNum} AND #{endRowNum}  
+	 </select> -->
+	 
+	<!--   <delete id="deleteProduct" parameterType="string"> 
+	 </delete>-->
+	 
+	 
+	 
+	  
+</mapper>
